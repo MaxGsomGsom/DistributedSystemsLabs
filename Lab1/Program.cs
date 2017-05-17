@@ -11,24 +11,35 @@ namespace Lab1
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("Press Q to stop");
 
             Bank bank = new Bank();
             Buyer buyer = new Buyer();
             Shop shop = new Shop();
 
-            buyer.BuyerEvent += bank.OnBuyerEvent;
-            buyer.BuyerEvent += shop.OnBuyerEvent;
+            //create channels between threads
+            buyer.ToBankEvent += bank.OnFromBuyerEvent;
+            buyer.ToShopEvent += shop.OnFromBuyerEvent;
 
-            shop.ShopEvent += bank.OnShopEvent;
-            shop.ShopEvent += buyer.OnShopEvent;
+            shop.ToBankEvent += bank.OnFromShopEvent;
+            shop.ToBuyerEvent += buyer.OnFromShopEvent;
 
-            bank.BankEvent += shop.OnBankEvent;
-            bank.BankEvent += buyer.OnBankEvent;
+            bank.ToShopEvent += shop.OnFromBankEvent;
+            bank.ToBuyerEvent += buyer.OnFromBankEvent;
 
+            //start threads
             bank.RunInThread();
             buyer.RunInThread();
             shop.RunInThread();
 
+            while (Console.ReadKey().Key != ConsoleKey.Q) { }
+
+            bank.Stop();
+            buyer.Stop();
+            shop.Stop();
+
+            Console.WriteLine("Press Q to quit");
+            while (Console.ReadKey().Key != ConsoleKey.Q) { }
         }
     }
 }
