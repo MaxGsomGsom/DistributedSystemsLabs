@@ -51,6 +51,9 @@ namespace Lab3_client
 
         }
 
+        /// <summary>
+        /// Connect to server
+        /// </summary>
         public void Connect()
         {
             if (Connected)
@@ -64,7 +67,7 @@ namespace Lab3_client
 
                 Connected = true;
                 SendMessageToServer(new ConnectedMessage(ComputeTotalDuration(), ClientInterface.ClientName));
-                Console.WriteLine("Connected to server");
+                Console.WriteLine("[= Connected to server | Client name: " + ClientInterface.ClientName + " =]");
             }
             catch (Exception ex)
             {
@@ -73,11 +76,16 @@ namespace Lab3_client
             }
         }
 
+        /// <summary>
+        /// Disconnect from server
+        /// </summary>
         public void Disconnect()
         {
             if (!Connected)
                 return;
 
+            //send all tasks to server before disconnect
+            SendTasksToServer(new BalancingRequestMessage(int.MaxValue));
             SendMessageToServer(new DisconnectedMessage(ClientInterface.ClientName));
 
             try
@@ -89,9 +97,13 @@ namespace Lab3_client
 
             ChannelServices.UnregisterChannel(tcpChan);
 
-            Console.WriteLine("Disconnected from server");
+            Console.WriteLine("[= Disconnected from server =]");
         }
 
+        /// <summary>
+        /// Send any message to server
+        /// </summary>
+        /// <param name="message"></param>
         public void SendMessageToServer(IMessage message)
         {
             if (!Connected)
@@ -99,7 +111,7 @@ namespace Lab3_client
 
             try
             {
-                Console.WriteLine("Send: " + message.GetType().Name + " | Tasks duration: " + ComputeTotalDuration());
+                Console.WriteLine("Send: " + message.GetType().Name + " | Tasks duration: " + ComputeTotalDuration() + " ms");
                 remoteServer.MessageFromClient(message);
             }
             catch (Exception ex)
@@ -119,34 +131,7 @@ namespace Lab3_client
             if (message is BalancingRequestMessage)
             {
                 var m = message as BalancingRequestMessage;
-                List<ComputingTask> tasksToSend = new List<ComputingTask>();
-                int totalDuration = 0;
-
-                //collect some tasks from queue with total duration received in message
-                while (true)
-                {
-                    ComputingTask item;
-                    if (tasks.TryPeek(out item))
-                    {
-                        if (item.Duration + totalDuration < m.MaxTasksDuration)
-                        {
-                            if (tasks.TryDequeue(out item))
-                            {
-                                tasksToSend.Add(item);
-                                totalDuration += item.Duration;
-                            }
-                        }
-                        else break;
-                    }
-                    else break;
-                }
-
-                //send collected tasks
-                if (totalDuration > 0)
-                {
-                    Console.WriteLine("Receive: " + message.GetType().Name);
-                    SendMessageToServer(new TasksMessage(tasksToSend, ClientInterface.ClientName));
-                }
+                SendTasksToServer(m);
             }
             else if (message is TasksMessage)
             {
@@ -157,10 +142,50 @@ namespace Lab3_client
                     tasks.Enqueue(item);
                 }
 
-                Console.WriteLine("Receive: " + message.GetType().Name + " | Tasks duration: " + ComputeTotalDuration());
+                Console.WriteLine("Receive: " + message.GetType().Name + " | Tasks duration: " + ComputeTotalDuration() + " ms");
             }
         }
 
+        /// <summary>
+        /// Send tasks from queue to server for balancing
+        /// </summary>
+        /// <param name="m"></param>
+        private void SendTasksToServer(BalancingRequestMessage m)
+        {
+            List<ComputingTask> tasksToSend = new List<ComputingTask>();
+            int totalDuration = 0;
+
+            //collect some tasks from queue with total duration received in message
+            while (true)
+            {
+                ComputingTask item;
+                if (tasks.TryPeek(out item))
+                {
+                    if (item.Duration + totalDuration < m.MaxTasksDuration)
+                    {
+                        if (tasks.TryDequeue(out item))
+                        {
+                            tasksToSend.Add(item);
+                            totalDuration += item.Duration;
+                        }
+                    }
+                    else break;
+                }
+                else break;
+            }
+
+            //send collected tasks
+            if (totalDuration > 0)
+            {
+                Console.WriteLine("Receive: " + m.GetType().Name);
+                SendMessageToServer(new TasksMessage(tasksToSend, ClientInterface.ClientName));
+            }
+        }
+
+        /// <summary>
+        /// Add task to queue
+        /// </summary>
+        /// <param name="task"></param>
         public void AddTaskToCompute(ComputingTask task)
         {
             //send update to server and add task to queue
@@ -168,6 +193,9 @@ namespace Lab3_client
             SendMessageToServer(new TasksInfoMessage(ComputeTotalDuration(), ClientInterface.ClientName));
         }
 
+        /// <summary>
+        /// Async compute tasks from queue
+        /// </summary>
         public async void StartComputingTasks()
         {
             await Task.Run(() =>
@@ -180,6 +208,7 @@ namespace Lab3_client
                     if (tasks.TryDequeue(out compTask))
                     {
                         compTask.Run();
+                        Console.WriteLine("[= Task completed in " + compTask.Duration + " ms =]");
                         SendMessageToServer(new TasksInfoMessage(ComputeTotalDuration(), ClientInterface.ClientName));
                     }
                 }

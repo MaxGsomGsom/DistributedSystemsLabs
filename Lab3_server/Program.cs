@@ -11,7 +11,7 @@ namespace Lab3_server
         [STAThread]
         static void Main(string[] args)
         {
-            Console.WriteLine("Press Q to quit");
+            Console.WriteLine("[[[ Press Q to quit ]]]");
 
             Server serv = new Server(12345);
             serv.StartServer();

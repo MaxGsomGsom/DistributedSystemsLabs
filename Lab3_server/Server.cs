@@ -30,6 +30,9 @@ namespace Lab3_server
             clients = new Dictionary<string, int>();
         }
 
+        /// <summary>
+        /// Start server
+        /// </summary>
         public void StartServer()
         {
             if (ServerActive)
@@ -53,7 +56,7 @@ namespace Lab3_server
                 internalRef = RemotingServices.Marshal(this,
                                  props["name"].ToString());
                 ServerActive = true;
-                Console.WriteLine("Server started");
+                Console.WriteLine("[= Server started =]");
             }
             catch (Exception ex)
             {
@@ -62,6 +65,9 @@ namespace Lab3_server
 
         }
 
+        /// <summary>
+        /// Stop server
+        /// </summary>
         public void StopServer()
         {
             if (!ServerActive)
@@ -72,7 +78,7 @@ namespace Lab3_server
             try
             {
                 ChannelServices.UnregisterChannel(serverChannel);
-                Console.WriteLine("Server stopped");
+                Console.WriteLine("[= Server stopped =]");
             }
             catch (Exception ex)
             {
@@ -103,7 +109,7 @@ namespace Lab3_server
                 if (clientName == null || clientName == cli.ClientName)
                     try
                     {
-                        Console.WriteLine("Send: " + message.GetType().Name);
+                        Console.WriteLine("Send: " + message.GetType().Name + (clientName!=null ? (" to " + clientName) : ""));
                         listener = (MessageEventHandler)del;
                         listener.Invoke(message);
                     }
@@ -130,14 +136,14 @@ namespace Lab3_server
                 var m = message as ConnectedMessage;
                 if (clients.ContainsKey(m.ClientName)) clients[m.ClientName] = m.TotalTasksDuration;
                 else clients.Add(m.ClientName, m.TotalTasksDuration);
-                Console.WriteLine("Receive: " + message.GetType().Name + " | Connected clients: " + clients.Count);
+                Console.WriteLine("Receive: " + m.GetType().Name + " from " + m.ClientName + " | Connected clients: " + clients.Count);
             }
             else if (message is DisconnectedMessage)
             {
                 //delete client
                 var m = message as DisconnectedMessage;
                 clients.Remove(m.ClientName);
-                Console.WriteLine("Receive: " + message.GetType().Name + " | Connected clients: " + clients.Count);
+                Console.WriteLine("Receive: " + m.GetType().Name + " from " + m.ClientName + " | Connected clients: " + clients.Count);
             }
             else if (message is TasksInfoMessage)
             {
@@ -146,21 +152,24 @@ namespace Lab3_server
                 if (clients.ContainsKey(m.ClientName)) clients[m.ClientName] = m.TotalTasksDuration;
                 else clients.Add(m.ClientName, m.TotalTasksDuration);
 
-                Console.WriteLine("Receive: " + message.GetType().Name);
+                Console.WriteLine("Receive: " + message.GetType().Name + " from " + m.ClientName);
 
                 CheckBalance();
             }
             else if (message is TasksMessage)
             {
-                Console.WriteLine("Receive: " + message.GetType().Name);
+                var m = message as TasksMessage;
+                Console.WriteLine("Receive: " + message.GetType().Name + " from " + m.ClientName);
 
                 //send received tasks to client with min total duration 
-                var m = message as TasksMessage;
                 SendTasksToFreeClient(m);
             }
         }
 
 
+        /// <summary>
+        /// Check balance of connected clients and try to balance them
+        /// </summary>
         void CheckBalance()
         {
             if (clients.Count < 2) return;
@@ -188,6 +197,10 @@ namespace Lab3_server
         }
 
 
+        /// <summary>
+        /// Send task from one client to another for balancing
+        /// </summary>
+        /// <param name="message"></param>
         void SendTasksToFreeClient(TasksMessage message)
         {
             var min = new KeyValuePair<string, int>(string.Empty, int.MaxValue);
@@ -199,7 +212,7 @@ namespace Lab3_server
                     min = item;
             }
 
-            //calc duration of tasks in message
+            //calculate duration of tasks in message
             int duration = 0;
             foreach (var item in message.Tasks)
             {
